@@ -7,17 +7,17 @@ import re
 from datetime import datetime
 from google.cloud import storage, vision, bigquery
 
-# Triggered from a message on a Cloud Pub/Sub topic.
+#Triggered from a message on a Cloud Pub/Sub topic
 @functions_framework.cloud_event
 def demo(cloud_event):
-    # 1. Retrieve the Pub/Sub message from the CloudEvent
-    #    cloud_event.data is a dict; 'message' holds the Pub/Sub message.
+    #Retrieve the Pub/Sub message from the CloudEvent
+    #cloud_event.data is a dict; 'message' holds the Pub/Sub message
     message = cloud_event.data.get("message")
     if not message:
         print("No Pub/Sub message found in the event data.")
         return
 
-    # 2. Decode the Base64-encoded message payload
+    #Decode the Base64-encoded message payload
     data = message.get("data")
     if not data:
         print("No 'data' field in the Pub/Sub message.")
@@ -30,7 +30,7 @@ def demo(cloud_event):
         print(f"Error decoding or parsing Pub/Sub message: {e}")
         return
 
-    # 3. Extract bucket and file name from the payload
+    #Extract bucket and file name from the payload
     bucket_name = attributes.get("bucketId")
     file_name = attributes.get("objectId")
 
@@ -38,13 +38,13 @@ def demo(cloud_event):
         print("Missing 'bucketId' or 'objectId' in the message payload.")
         return
 
-    # Perform OCR with Cloud Vision
-    # 4. Initialize Cloud clients
+    #Perform OCR with Cloud Vision
+    #Initialize Cloud clients
     storage_client = storage.Client()
     vision_client = vision.ImageAnnotatorClient()
     bq_client = bigquery.Client()
 
-    # 5. Construct GCS URI and run Vision OCR
+    #Construct GCS URI and run Vision OCR
     image_uri = f"gs://{bucket_name}/{file_name}"
     image = vision.Image()
     image.source.image_uri = image_uri
@@ -52,16 +52,16 @@ def demo(cloud_event):
     response = vision_client.text_detection(image=image)
     texts = response.text_annotations
 
-    # 6. Extract text or return empty if none found
+    #Extract text or return empty if none found
     extracted_text = texts[0].description if texts else ""
     print(f"Extracted text: {extracted_text}")
     logging.info(f"Extracted text: {extracted_text}")
 
-    # 7. Match against the updated car plate pattern
+    #Match against the updated car plate pattern
     car_plate_pattern = re.compile(r"\b[A-Z]{1,3} [0-9]{1,4}\b")
     matches = car_plate_pattern.findall(extracted_text)
     if matches:
-        # Assuming the desired plate is the first match
+        #Assume the desired plate is the first match
         car_plate = matches[0]
         print(f"Matched car plate: {car_plate}")
         logging.info(f"Matched car plate: {car_plate}")
@@ -69,15 +69,15 @@ def demo(cloud_event):
     else:
         print(f"No match for {extracted_text}")
 
-    # 8. Insert result into BigQuery
+    #Insert result into BigQuery
     bq_client = bigquery.Client()
     table_ref = bq_client.dataset("car_plate_dataset").table("car_toll")
     
-    # 9. Define current datetime and out_toll_id
+    #Define current datetime and out_toll_id
     current_datetime = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     out_toll_id = 2
 
-    # 10. Query the car_toll table to check for the car plate
+    #Query the car_toll table to check for the car plate
     query = f"""
         SELECT id, car_plate, out_datetime
         FROM `car_plate_dataset.car_toll`
@@ -87,7 +87,7 @@ def demo(cloud_event):
     car_toll_row = [row for row in results]
 
     if car_toll_row:
-        # Car plate exists, update the out_datetime and out_toll_id
+        #Car plate exists, update the out_datetime and out_toll_id
         update_query = f"""
             UPDATE `car_plate_dataset.car_toll`
             SET out_datetime = '{current_datetime}', out_toll_id = {out_toll_id}
@@ -95,7 +95,7 @@ def demo(cloud_event):
         """
         bq_client.query(update_query)
 
-        # Update the balance in the car_owner table
+        #Update the balance in the car_owner table
         owner_query = f"""
             SELECT id, balance
             FROM `car_plate_dataset.car_owner`
